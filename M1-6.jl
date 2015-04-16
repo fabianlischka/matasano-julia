@@ -17,8 +17,52 @@
 # Solve each block as if it was single-character XOR. You already have code to do this.
 # For each block, the single-byte XOR key that produces the best looking histogram is the repeating-key XOR key byte for that block. Put them together and you have the key.
 
-fn = "6.txt"
-for l in open(readlines,fn)
-  ciphertext_str = base64decode(chomp(l))
-  println(ciphertext_str)
+using Crypto101
+
+function getciphertext()
+    fn = "6.txt"
+    base64decode(readall(fn))
 end
+
+function guesskeysize(ct_b, numBlocks = 2, maxkeysize = 40)
+    # dist_keysize_heap = fill((Inf, 0), collectBestN) # Inf is the worst distance
+    distances = zeros(maxkeysize-1)
+    for keysize = 2:maxkeysize
+        d = 0.0
+        for k = 1:keysize
+            db = 0.0
+            for n = 1:(numBlocks-1)
+                for j = 0:(n-1)
+                    db += hammingdistance(ct_b[k+n*keysize], ct_b[k+j*keysize])
+                end
+            end
+            db /= numBlocks*(numBlocks-1)/2
+            d += db
+        end
+        d /= keysize
+        # we heapify reverse, to keep the worst (largest) distance in front to toss it out
+        #         heappushpop!(dist_keysize_heap, (d, keysize), Reverse)
+        distances[keysize-1] = d
+    end
+    # heapify!(dist_keysize_heap) # now we heapify forward, so that we can pop from best to worst
+    m, s = mean(distances), std(distances)
+    return sort!([(d,i+1,(m-d)/s) for (i,d) in enumerate(distances)])
+end
+
+function guessslices{T<:Unsigned}(ct_b::Array{T,1}, keysize)
+    b = Array(T,keysize)
+    for k = 1:keysize
+        ct_tranchek = ct_b[k:keysize:end]
+        _,b[k],_ = collectNBestXor(ct_tranchek)[1]
+    end
+    b
+end
+
+ct_b = str2bytes(getciphertext())
+dist, keysize, z = guesskeysize(ct_b,20,40)[1]
+println("Trying keysize $keysize with average bit distance of $dist and z-score of $z...")
+# slice
+key = guessslices(ct_b, keysize)
+println("Guessed key: $(ascii(key))")
+println("Message:")
+println(ascii(encryptxor(ct_b,key)))
