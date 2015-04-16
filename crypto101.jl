@@ -2,7 +2,9 @@ module Crypto101
 
 using Base.Collections, Base.Order
 
-export chi2score, collectNBestXor, encryptxor, pop, hammingdistance
+export str2bytes, chi2score, collectNBestXor, encryptxor, pop, hammingdistance
+
+str2bytes(s::String) = [UInt8(c) for c in s]
 
 expectedFreq = [
 8.167    #a
