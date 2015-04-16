@@ -59,6 +59,21 @@ function chi2score(s)
   disc
 end
 
+# collectNBestXor: given an array of unsigneds and N, will XOR with all b in 0:255,
+# score them for similarity to English using chi2score,
+# and return the N best matches as tuples (-score, b, plaintext_bytes)
+function collectNBestXor{T<:Unsigned}(ciphertext_bytes::Array{T,1}, N = 1)
+  candidate_heap = fill((-Inf,zero(T),T[]), N)
+  for b::T = 0:255
+    plaintext_bytes = ciphertext_bytes $ b
+    s   = -chi2score(plaintext_bytes)
+#    if s
+    heappushpop!(candidate_heap, (s,b,plaintext_bytes))
+  end
+  candidate_heap
+end
+
+
 # POP: given char or unsigned int, it returns the population count, ie number of bits that are set to one
 function pop(x::UInt32) # from "Hacker's Delight"
   x::UInt32 = x - ((x >> 1) & 0x55555555)
