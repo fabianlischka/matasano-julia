@@ -20,7 +20,7 @@
 
 # note: b"hello" creates an array of bytes (UInt8), UTF-8 encoded (thus coinciding with ASCII on lower 127)
 
-using crypto101
+using Crypto101
 
 key_b = b"ICE"
 pt_b = b"Burning 'em, if you ain't quick and nimble\nI go crazy when I hear a cymbal"

@@ -1,6 +1,6 @@
-module crypto101
+module Crypto101
 
-using Base.Collections
+using Base.Collections, Base.Order
 
 export chi2score, collectNBestXor, encryptxor, pop, hammingdistance
 
@@ -65,12 +65,11 @@ end
 # score them for similarity to English using chi2score,
 # and return the N best matches as tuples (-score, b, plaintext_bytes)
 function collectNBestXor{T<:Unsigned}(ciphertext_bytes::Array{T,1}, N = 1)
-  candidate_heap = fill((-Inf,zero(T),T[]), N)
+  candidate_heap = fill((Inf,zero(T),T[]), N)
   for b::T = 0:255
     plaintext_bytes = ciphertext_bytes $ b
-    s   = -chi2score(plaintext_bytes)
-#    if s
-    heappushpop!(candidate_heap, (s,b,plaintext_bytes))
+    s   = chi2score(plaintext_bytes)
+    heappushpop!(candidate_heap, (s,b,plaintext_bytes), Reverse)
   end
   candidate_heap
 end

@@ -6,17 +6,17 @@
 
 # http://cryptopals.com/static/challenge-data/4.txt
 
-using crypto101
-using Base.Collections
+using Crypto101
+using Base.Collections, Base.Order
 
 fn = "4.txt"
 
 ln = 1
-candidate_heap = fill((-Inf,zero(UInt8),UInt8[],ln), 1)
+candidate_heap = fill((Inf,zero(UInt8),UInt8[],ln), 1)
 for l in open(readlines,fn)
     ciphertext_b = hex2bytes(chomp(l))
     s,b,pt = collectNBestXor(ciphertext_b)[1]
-    heappushpop!(candidate_heap,(s,b,pt,ln))
+    heappushpop!(candidate_heap,(s,b,pt,ln), Reverse)
     ln += 1
 end
 
