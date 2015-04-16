@@ -10,7 +10,6 @@
 # ETAOIN SHRDLU
 
 using crypto101
-using Base.Collections
 
 cthex = "1b37373331363f78151b7f2b783431333d78397828372d363c78373e783a393b3736"
 ctb = hex2bytes(cthex)

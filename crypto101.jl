@@ -1,6 +1,8 @@
 module crypto101
 
-export chi2score, pop, hammingdistance
+using Base.Collections
+
+export chi2score, collectNBestXor, encryptxor, pop, hammingdistance
 
 expectedFreq = [
 8.167    #a
@@ -71,6 +73,16 @@ function collectNBestXor{T<:Unsigned}(ciphertext_bytes::Array{T,1}, N = 1)
     heappushpop!(candidate_heap, (s,b,plaintext_bytes))
   end
   candidate_heap
+end
+
+# ENCRYPT_XOR: given a plaintext array and a key array,
+# returns an array of the plaintext xor-ed with the (infinitely repeating) key sequence
+function encryptxor(pt_b, key_b)
+  res = copy(pt_b)
+  for i = 1:length(pt_b)
+    res[i] = pt_b[i] $ key_b[mod1(i,length(key_b))]
+  end
+  res
 end
 
 
