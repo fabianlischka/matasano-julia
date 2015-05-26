@@ -3,6 +3,7 @@ module Crypto101
 using Base.Collections, Base.Order
 
 export str2bytes, chi2score, collectNBestXor, encryptxor, pop, hammingdistance
+export pad, unpad, PadderPKCS7
 
 str2bytes(s::String) = [UInt8(c) for c in s]
 
@@ -109,6 +110,16 @@ end
 pop(x::Char) = pop(UInt32(x))
 pop(x) = count( c->(c=='1'), bits(x))
 
+# PAR computes the parity of x, that is 1 if the number of set bits in x is odd, and 0 if it's even
+function par(x::UInt8)
+    y = x $ (x>>1)
+    y = y $ (y>>2)
+    y = y $ (y>>4)
+    y & one(x)
+end
+
+par(x) = pop(x) & one(x)
+
 # HAMMINGDISTANCE: number of bits that are different between x and y
 hammingdistance{T<:Unsigned}(x::T,y::T) = pop(x$y)
 hammingdistance{T<:Char}(x::T,y::T) = pop(x $ y)
@@ -118,12 +129,72 @@ function hammingdistance{T<:String}(xs::T,ys::T)
   sum([hammingdistance(x,y) for (x,y) in zip(xs,ys)])
 end
 
+abstract Padder
+# support pad!(p::Padder, sequence), unpad!(p,s)
+
+# default implementations
+pad(p::Padder, seq) = pad!(p, copy(seq))
+unpad(p::Padder, seq) = unpad!(p, copy(seq))
+
+immutable PadderPKCS7 <: Padder
+    numBytes::Int
+    function PadderPKCS7(n::Integer)
+        n < 256 || error("PKCS7 can only pad to multiples smaller 256")
+        n > 0 || error("PKCS7 multiple must be positive")
+        new(n)
+    end
+end
+
+function pad!(p::PadderPKCS7, seq::AbstractArray{UInt8,1})
+    r = p.numBytes - mod(length(seq), p.numBytes) # r is in 1..p.numBytes
+    padding = fill(UInt8(r) ,r)
+    append!(seq, padding)
+end
+
+function unpad!(p::PadderPKCS7, seq::AbstractArray{UInt8,1})
+    L = length(seq)
+    mod(L, p.numBytes) == 0 || error("padded sequence length should be multiple of $(p.numBytes), is $L.")
+    lastByte = seq[L]
+    lastByte <= L || error("incorrect padding")
+    for k = (L-lastByte+1):L
+        seq[L] == lastByte || error("incorrect padding")
+    end
+    resize!(seq, L-lastByte)
+end
+
+immutable Padder1Bit <: Padder
+    numBytes::Int
+    function Padder1Bit(n::Integer)
+        n > 0 || error("Padder1Bit multiple must be positive")
+        new(n)
+    end
+end
+
+function pad!(p::Padder1Bit, seq::AbstractArray{UInt8,1})
+    r = p.numBytes - mod(length(seq),p.numBytes)  # r is in 1..p.numBytes
+    padding = fill(UInt8(0), r)
+    padding[1] = 0x80
+    append!(seq,padding)
+end
+
+function unpad!(p::Padder1Bit, seq::AbstractArray{UInt8,1})
+    L = length(seq)
+    mod(L, p.numBytes) == 0 || error("padded sequence length should be multiple of $(p.numBytes), is $L.")
+    while seq[L] == 0x00
+        L -= 1
+        L == 0 && error("incorrect padding")
+    end
+    seq[L] == 0x80 || error("incorrect padding")
+    resize!(seq, L-1)
+end
+
 
 end # module
 
 
 # NOTES
 
+# b"YELLOW" == [0x59, 0x45, 0x4c, 0x4c, 0x4f, 0x57]
 # hex2bytes("1234ab")
 # bytes2hex(bin_arr::Array{UInt8, 1})
 # num2hex(f) Get a hexadecimal string of the binary representation of a floating point number
