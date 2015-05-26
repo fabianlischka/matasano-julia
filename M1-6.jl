@@ -1,4 +1,4 @@
-# Fabian R Lischka, 2015-04-10, Indonesia, Bali, Onion Collective
+# Fabian R Lischka, 2015-04-17, Indonesia, Bali, Lembongan, Bunga Bungalow
 # http://cryptopals.com/sets/1/challenges/6/
 
 # Here's a text. It's been base64'd after being encrypted with repeating-key XOR.
@@ -19,9 +19,8 @@
 
 using Crypto101
 
-function getciphertext()
-    fn = "6.txt"
-    base64decode(readall(fn))
+function getciphertext(fn)
+    base64decode(chomp(readall(fn)))
 end
 
 function guesskeysize(ct_b, numBlocks = 2, maxkeysize = 40)
@@ -58,7 +57,7 @@ function guessslices{T<:Unsigned}(ct_b::Array{T,1}, keysize)
     b
 end
 
-ct_b = str2bytes(getciphertext())
+ct_b = str2bytes(getciphertext("6.txt"))
 dist, keysize, z = guesskeysize(ct_b,20,40)[1]
 println("Trying keysize $keysize with average bit distance of $dist and z-score of $z...")
 # slice
