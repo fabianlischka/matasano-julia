@@ -1,4 +1,5 @@
 import AES
+import Crypto101
 
 ∙ = (AES.∙)
 ⊗ = (AES.⊗)
@@ -55,3 +56,15 @@ println(AES.Sbox(0x53) == 0xed)
 println(AES.encipher(AES.AESBlock(example_key_128), example_plaintext) == example_cipher_ref_128)
 println(AES.encipher(AES.AESBlock(example_key_192), example_plaintext) == example_cipher_ref_192)
 println(AES.encipher(AES.AESBlock(example_key_256), example_plaintext) == example_cipher_ref_256)
+
+
+# complete encyption example
+key = example_key_128
+blockcipher = AES.AESBlock(key)
+blockmode = AES.Blockmode_ECB()
+padder = Crypto101.Padder1Bit( AES.blocklength_bytes(blockcipher) )
+c = AES.Cipher( blockcipher, blockmode, padder)
+plaintext = b"this is my first encryption test!"
+ciphertext = AES.encipher(c, plaintext)
+plaintext_roundtrip = AES.decipher(c, ciphertext)
+plaintext == plaintext_roundtrip
