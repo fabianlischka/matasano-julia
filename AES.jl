@@ -1,5 +1,6 @@
 module AES
 
+import Crypto101
 # input 16 bytes         state 4 x 4 bytes             output 16 bytes
 # in01 in05 in09 in13    s[1,1] s[1,2] s[1,3] s[1,4]   out01 out05 out09 out13
 # in02 in06 in10 in14    s[2,1] s[2,2] s[2,3] s[2,4]   out02 out06 out10 out14
@@ -22,12 +23,27 @@ module AES
 # switch state to bitstype?? file:///Users/frl/Downloads/julia-release-0.3/index.html#bits-types
 
 abstract Blockcipher
-# supports: blocklength_bytes(bc), instantiation somehow, encode(bc, plaintext), decode(bc, ciphertext)
-# with plaintext and ciphertext of length blocklength
+# supports: blocklength_bytes(bc), instantiation somehow,
+# encode(bc, plaintext), decode(bc, ciphertext), with plaintext and ciphertext of length blocklength
 
-abstract Cipher
+abstract Blockmode
+
+type Cipher
 # supports: instantiation somehow, encode, decode, with arbitrary length texts
 # contains: block cipher, block mode, padder
+    blockcipher :: Blockcipher
+    blockmode :: Blockmode
+    padder :: Crypto101.Padder
+end
+
+# examples:
+
+# encryptblock(cipherblock, keyblock)
+# encrypt(cipherObj, plaintext)
+# decrypt(cipherObj, plaintext)
+# pad(plaintext, multiple)
+# depad(paddedtext)
+
 
 # FIXFIXFIX: make immutable?
 type AESBlock <: Blockcipher
@@ -36,10 +52,10 @@ type AESBlock <: Blockcipher
     Nr::Int    # Nr = 10,12,14   # number of rounds. 10, 12, 14
     key::Array{UInt8,1}          # key, as sequence of bytes (16, 24, or 32)
 
-    function AESBlock(key::Array{UInt8,1})
-        length(key) == 4*4 && return new(4,4,10,key)
-        length(key) == 4*6 && return new(4,6,12,key)
-        length(key) == 4*8 && return new(4,8,14,key)
+    function AESBlock(key::AbstractArray{UInt8,1})
+        length(key) == 4*4 && return new(4, 4, 10, key)
+        length(key) == 4*6 && return new(4, 6, 12, key)
+        length(key) == 4*8 && return new(4, 8, 14, key)
         error("AESBlock key length should be 16, 24, or 32; is $(length(key))")
     end
 end
@@ -109,7 +125,7 @@ function (∙)(a::UInt8, b::UInt8)
 end
 
 # Multiplication of two polynomials (each with degree < 4) modulo x^4 + 1, ⊗ (\otimes) in fips-197
-function (⊗)(a::Array{UInt8,1}, b::Array{UInt8,1})
+function (⊗)(a::AbstractArray{UInt8,1}, b::AbstractArray{UInt8,1})
     length(a) == 4 || error("first argument of polynomial multplication (⊗) must have 4 bytes")
     length(b) == 4 || error("first argument of polynomial multplication (⊗) must have 4 bytes")
     d = Array(UInt8,4)
@@ -171,6 +187,24 @@ const Sbox_table = [0x63,0x7c,0x77,0x7b,0xf2,0x6b,0x6f,0xc5,0x30,0x01,0x67,0x2b,
                     0xe1,0xf8,0x98,0x11,0x69,0xd9,0x8e,0x94,0x9b,0x1e,0x87,0xe9,0xce,0x55,0x28,0xdf,
                     0x8c,0xa1,0x89,0x0d,0xbf,0xe6,0x42,0x68,0x41,0x99,0x2d,0x0f,0xb0,0x54,0xbb,0x16]
 
+const invSbox_table =
+                    [0x52,0x09,0x6a,0xd5,0x30,0x36,0xa5,0x38,0xbf,0x40,0xa3,0x9e,0x81,0xf3,0xd7,0xfb,
+                     0x7c,0xe3,0x39,0x82,0x9b,0x2f,0xff,0x87,0x34,0x8e,0x43,0x44,0xc4,0xde,0xe9,0xcb,
+                     0x54,0x7b,0x94,0x32,0xa6,0xc2,0x23,0x3d,0xee,0x4c,0x95,0x0b,0x42,0xfa,0xc3,0x4e,
+                     0x08,0x2e,0xa1,0x66,0x28,0xd9,0x24,0xb2,0x76,0x5b,0xa2,0x49,0x6d,0x8b,0xd1,0x25,
+                     0x72,0xf8,0xf6,0x64,0x86,0x68,0x98,0x16,0xd4,0xa4,0x5c,0xcc,0x5d,0x65,0xb6,0x92,
+                     0x6c,0x70,0x48,0x50,0xfd,0xed,0xb9,0xda,0x5e,0x15,0x46,0x57,0xa7,0x8d,0x9d,0x84,
+                     0x90,0xd8,0xab,0x00,0x8c,0xbc,0xd3,0x0a,0xf7,0xe4,0x58,0x05,0xb8,0xb3,0x45,0x06,
+                     0xd0,0x2c,0x1e,0x8f,0xca,0x3f,0x0f,0x02,0xc1,0xaf,0xbd,0x03,0x01,0x13,0x8a,0x6b,
+                     0x3a,0x91,0x11,0x41,0x4f,0x67,0xdc,0xea,0x97,0xf2,0xcf,0xce,0xf0,0xb4,0xe6,0x73,
+                     0x96,0xac,0x74,0x22,0xe7,0xad,0x35,0x85,0xe2,0xf9,0x37,0xe8,0x1c,0x75,0xdf,0x6e,
+                     0x47,0xf1,0x1a,0x71,0x1d,0x29,0xc5,0x89,0x6f,0xb7,0x62,0x0e,0xaa,0x18,0xbe,0x1b,
+                     0xfc,0x56,0x3e,0x4b,0xc6,0xd2,0x79,0x20,0x9a,0xdb,0xc0,0xfe,0x78,0xcd,0x5a,0xf4,
+                     0x1f,0xdd,0xa8,0x33,0x88,0x07,0xc7,0x31,0xb1,0x12,0x10,0x59,0x27,0x80,0xec,0x5f,
+                     0x60,0x51,0x7f,0xa9,0x19,0xb5,0x4a,0x0d,0x2d,0xe5,0x7a,0x9f,0x93,0xc9,0x9c,0xef,
+                     0xa0,0xe0,0x3b,0x4d,0xae,0x2a,0xf5,0xb0,0xc8,0xeb,0xbb,0x3c,0x83,0x53,0x99,0x61,
+                     0x17,0x2b,0x04,0x7e,0xba,0x77,0xd6,0x26,0xe1,0x69,0x14,0x63,0x55,0x21,0x0c,0x7d]
+
 const Rcon = UInt32[0x01000000,0x02000000,0x04000000,0x08000000,0x10000000,0x20000000,0x40000000,0x80000000,
                     0x1b000000,0x36000000,0x6c000000,0xd8000000,0xab000000,0x4d000000,0x9a000000,0x2f000000]
 
@@ -178,13 +212,7 @@ const Rcon_b = UInt8[0x01,0x00,0x00,0x00,0x02,0x00,0x00,0x00,0x04,0x00,0x00,0x00
                      0x10,0x00,0x00,0x00,0x20,0x00,0x00,0x00,0x40,0x00,0x00,0x00,0x80,0x00,0x00,0x00,
                      0x1b,0x00,0x00,0x00,0x36,0x00,0x00,0x00]
 
-# examples:
 
-# encryptblock(cipherblock, keyblock)
-# encrypt(cipherObj, plaintext)
-# decrypt(cipherObj, plaintext)
-# pad(plaintext, multiple)
-# depad(paddedtext)
 
 rotr1(x::UInt8) = (x>>1)|(x<<7)
 rotr(x::UInt8,n) = (x>>n)|(x<<(8-n))
@@ -222,10 +250,17 @@ end
 create_Sbox_table() = [Sbox_slow(b) for b in 0x00:0xff]
 
 Sbox(b::UInt8) = Sbox_table[b+1]
+invSbox(b::UInt8) = invSbox_table[b+1]
 
 function subbytes!(state::Array{UInt8,1})
     for i = 1:length(state)
         @inbounds state[i] = Sbox(state[i])
+    end
+end
+
+function invsubbytes!(state::Array{UInt8,1})
+    for i = 1:length(state)
+        @inbounds state[i] = invSbox(state[i])
     end
 end
 
@@ -247,8 +282,8 @@ function shiftrows_old!(aes::AESBlock, state::Array{UInt8,1})
     length(state) == 4*aes.Nb || error("state must be 16 bytes")
     state32 = reinterpret(UInt32,state)
     @inbounds state32[2] = rotlittle(state32[2],8)
-    @inbounds state32[3] = rotlittle(state32[2],16)
-    @inbounds state32[4] = rotlittle(state32[2],24)
+    @inbounds state32[3] = rotlittle(state32[3],16)
+    @inbounds state32[4] = rotlittle(state32[4],24)
 end
 
 function shiftrows!(state::Array{UInt8,1})
@@ -265,11 +300,30 @@ function shiftrows!(state::Array{UInt8,1})
     #     16  4  8 12
 end
 
+function invshiftrows!(state::Array{UInt8,1})
+    state[:] = state[[1,14,11,8,5,2,15,12,9,6,3,16,13,10,7,4]]
+    # from
+    #      1  5  9 13
+    #      2  6 10 14
+    #      3  7 11 15
+    #      4  8 12 16
+    # to
+    #      1  5  9 13
+    #     14  2  6 10
+    #     11 15  3  7
+    #      8 12 16  4
+end
 
 function mixcolumn_slow!(col::AbstractArray{UInt8,1})
     length(col) == 4 || error("col must be 4 bytes")
     const a = [0x02, 0x01, 0x01, 0x03]
-    col = a ⊗ col
+    col[:] = a ⊗ col
+end
+
+function invmixcolumn_slow!(col::AbstractArray{UInt8,1})
+    length(col) == 4 || error("col must be 4 bytes")
+    const ainv = [0x0e, 0x09, 0x0d, 0x0b]
+    col[:] = ainv ⊗ col
 end
 
 function mixcolumn!(col::AbstractArray{UInt8,1})
@@ -290,6 +344,13 @@ function mixcolumns!(state::Array{UInt8,1})
     mixcolumn!(slice(state,5:8))
     mixcolumn!(slice(state,9:12))
     mixcolumn!(slice(state,13:16))
+end
+
+function invmixcolumns!(state::Array{UInt8,1})
+    invmixcolumn_slow!(slice(state,1:4))
+    invmixcolumn_slow!(slice(state,5:8))
+    invmixcolumn_slow!(slice(state,9:12))
+    invmixcolumn_slow!(slice(state,13:16))
 end
 
 # AGENDA
@@ -422,7 +483,7 @@ function encipher!(aes::AESBlock, plaintext::Array{UInt8,1})
         debug && println("r $k shiftrows: $(repr(state))")
         mixcolumns!(state)
         debug && println("r $k mixcolums: $(repr(state))")
-#       addroundkey!(state,  w[ (aes.Nb*k + 1) :(  aes.Nb*(k+1)) ] )
+        #       addroundkey!(state,  w[ (aes.Nb*k + 1) :(  aes.Nb*(k+1)) ] )
         addroundkey!(state, wb[ (4*aes.Nb*k +1):(4*aes.Nb*(k+1)) ] )
         debug && println("r $k    rk:     $(repr(wb[ (4*aes.Nb*k +1):(4*aes.Nb*(k+1)) ]))")
         debug && println("r $k addrk:     $(repr(state))")
@@ -439,5 +500,118 @@ function encipher!(aes::AESBlock, plaintext::Array{UInt8,1})
 end
 
 encipher(aes::AESBlock, plaintext::Array{UInt8,1}) = encipher!(aes, copy(plaintext))
+
+
+function decipher!(aes::AESBlock, plaintext::Array{UInt8,1})
+   # const debug = false
+    length(plaintext) == blocklength_bytes(aes) || error("plaintext wrong length $(length(plaintext)), should be $(blocklength_bytes(aes)).")
+    state = plaintext # FIXFIXFIX
+   # debug && println("fresh state:   $(repr(state))")
+    wb = keyexpansion(aes)
+    addroundkey!(state, wb[ (4*aes.Nr*aes.Nb+1):(4*(aes.Nr+1)*aes.Nb) ])
+   # debug && println("    round key: $(repr(wb[ (4*aes.Nr*aes.Nb+1):(4*(aes.Nr+1)*aes.Nb) ]))")
+   # debug && println("add round key: $(repr(state))")
+    for k = (aes.Nr-1):-1:1
+        invshiftrows!(state)
+#        debug && println("r $k shiftrows: $(repr(state))")
+        invsubbytes!(state)
+#        debug && println("r $k subbytes:  $(repr(state))")
+        addroundkey!(state, wb[ (4*aes.Nb*k +1):(4*aes.Nb*(k+1)) ] )
+#         debug && println("r $k    rk:     $(repr(wb[ (4*aes.Nb*k +1):(4*aes.Nb*(k+1)) ]))")
+#         debug && println("r $k addrk:     $(repr(state))")
+        invmixcolumns!(state)
+#         debug && println("r $k mixcolums: $(repr(state))")
+
+    end
+    invshiftrows!(state)
+    #        debug && println("finalshiftrows: $(repr(state))")
+    invsubbytes!(state)
+
+    #        debug && println("finalsubbytes:  $(repr(state))")
+    addroundkey!(state, wb[1:(4*aes.Nb)])
+    # debug && println("final     rk:  $(repr(wb[ 1 :(4*aes.Nb) ]))")
+    # debug && println("final add rk:  $(repr(state))")
+
+    state
+end
+
+decipher(aes::AESBlock, ciphertext::Array{UInt8,1}) = decipher!(aes, copy(ciphertext))
+
+#########################
+# Blockmodes
+#########################
+
+type Blockmode_ECB <: Blockmode
+end
+
+type Blockmode_CBC <: Blockmode
+    IV :: AbstractArray{UInt8,1}
+    ciphertext_prev :: AbstractArray{UInt8,1}
+
+    function Blockmode_CBC(IV::AbstractArray{UInt8,1})
+        return new(IV, UInt8[])
+    end
+end
+
+# ECB
+# C_i = E(K, P_i)
+function encipher_block(bm::Blockmode_ECB, bc::Blockcipher, plaintext)
+    encipher(bc, plaintext)
+end
+
+function decipher_block(bm::Blockmode_ECB, bc::Blockcipher, ciphertext)
+    decipher(bc, ciphertext)
+end
+
+
+# CBC
+# C_i = E(K, P_i + C_(i-1)), with C_0 := IV
+function encipher_block(bm::Blockmode_CBC, bc::Blockcipher, plaintext)
+    if length(ciphertext_prev) == 0
+        C_im1 = bm.IV
+    else
+        C_im1 = ciphertext_prev
+    end
+    if length(C_im1) != length(plaintext)
+        error("plaintext wrong length")
+    end
+    modified_plaintext = plaintext $ C_im1
+    ciphertext = encipher(bc, plaintext)
+    bm.ciphertext_prev = copy(ciphertext)
+    ciphertext
+end
+
+
+# blocklength_bytes(aes::AESBlock) = 16
+
+
+function encipher(cipher::Cipher, plaintext)
+    # pad
+    plaintext_padded = Crypto101.pad(cipher.padder, plaintext)
+
+    # encrypt one block after the other
+    blocklength = blocklength_bytes(cipher.blockcipher)
+    numblocks, extra = divrem(length(plaintext_padded), blocklength)
+    extra == 0 || error("padded plaintext wrong length")
+
+    ct = zeros(plaintext_padded)
+    for i = 1:numblocks
+        ct[((i-1)*blocklength+1):(i*blocklength)] = encipher_block(cipher.blockmode, cipher.blockcipher, plaintext_padded[((i-1)*blocklength+1):(i*blocklength)])
+    end
+    ct
+end
+
+function decipher(cipher::Cipher, ciphertext)
+    blocklength = blocklength_bytes(cipher.blockcipher)
+    numblocks, extra = divrem(length(ciphertext), blocklength)
+    extra == 0 || error("ciphertext wrong length")
+
+    plaintext_padded = zeros(ciphertext)
+    for i = 1:numblocks
+        plaintext_padded[((i-1)*blocklength+1):(i*blocklength)] = decipher_block(cipher.blockmode, cipher.blockcipher, ciphertext[((i-1)*blocklength+1):(i*blocklength)])
+    end
+    # unpad
+    plaintext = Crypto101.unpad(cipher.padder, plaintext_padded)
+end
 
 end
