@@ -1,6 +1,9 @@
 module AES
 
 import Crypto101
+
+export encipher, decipher, blocklength_bytes
+
 # input 16 bytes         state 4 x 4 bytes             output 16 bytes
 # in01 in05 in09 in13    s[1,1] s[1,2] s[1,3] s[1,4]   out01 out05 out09 out13
 # in02 in06 in10 in14    s[2,1] s[2,2] s[2,3] s[2,4]   out02 out06 out10 out14
@@ -252,19 +255,19 @@ create_Sbox_table() = [Sbox_slow(b) for b in 0x00:0xff]
 Sbox(b::UInt8) = Sbox_table[b+1]
 invSbox(b::UInt8) = invSbox_table[b+1]
 
-function subbytes!(state::Array{UInt8,1})
-    for i = 1:length(state)
+function subbytes!(state::AbstractArray{UInt8,1})
+    for i in eachindex(state)
         @inbounds state[i] = Sbox(state[i])
     end
 end
 
-function invsubbytes!(state::Array{UInt8,1})
-    for i = 1:length(state)
+function invsubbytes!(state::AbstractArray{UInt8,1})
+    for i in eachindex(state)
         @inbounds state[i] = invSbox(state[i])
     end
 end
 
-function subword!(wb::Array{UInt8,1})
+function subword!(wb::AbstractArray{UInt8,1})
     length(wb) == 4 || error("word must be 4 bytes")
     for i = 1:4
         wb[i] = Sbox(wb[i])
@@ -278,7 +281,7 @@ function subword(w::UInt32)
     reinterpret(UInt32,wb)[1]
 end
 
-function shiftrows_old!(aes::AESBlock, state::Array{UInt8,1})
+function shiftrows_old!(aes::AESBlock, state::AbstractArray{UInt8,1})
     length(state) == 4*aes.Nb || error("state must be 16 bytes")
     state32 = reinterpret(UInt32,state)
     @inbounds state32[2] = rotlittle(state32[2],8)
@@ -286,7 +289,7 @@ function shiftrows_old!(aes::AESBlock, state::Array{UInt8,1})
     @inbounds state32[4] = rotlittle(state32[4],24)
 end
 
-function shiftrows!(state::Array{UInt8,1})
+function shiftrows!(state::AbstractArray{UInt8,1})
     state[:] = state[[1,6,11,16,5,10,15,4,9,14,3,8,13,2,7,12]]
     # from
     #      1  5  9 13
@@ -300,7 +303,7 @@ function shiftrows!(state::Array{UInt8,1})
     #     16  4  8 12
 end
 
-function invshiftrows!(state::Array{UInt8,1})
+function invshiftrows!(state::AbstractArray{UInt8,1})
     state[:] = state[[1,14,11,8,5,2,15,12,9,6,3,16,13,10,7,4]]
     # from
     #      1  5  9 13
@@ -339,14 +342,14 @@ end
 # 2: b -> bx (xtimes(b))
 # 3: b -> b+bx (b $ xtimes(b))
 
-function mixcolumns!(state::Array{UInt8,1})
+function mixcolumns!(state::AbstractArray{UInt8,1})
     mixcolumn!(slice(state,1:4))
     mixcolumn!(slice(state,5:8))
     mixcolumn!(slice(state,9:12))
     mixcolumn!(slice(state,13:16))
 end
 
-function invmixcolumns!(state::Array{UInt8,1})
+function invmixcolumns!(state::AbstractArray{UInt8,1})
     invmixcolumn_slow!(slice(state,1:4))
     invmixcolumn_slow!(slice(state,5:8))
     invmixcolumn_slow!(slice(state,9:12))
@@ -357,7 +360,7 @@ end
 # addroundkey(state, w)
 
 rotword(w::UInt32) = rotl(w,8)
-rotword(wb::Array{UInt8,1}) = wb[[2,3,4,1]]
+rotword(wb::AbstractArray{UInt8,1}) = wb[[2,3,4,1]]
 
 
 # FIXFIXFIX: de-word (to circumvent endianness problems)
@@ -467,7 +470,7 @@ end
 
 addroundkey!(state, roundkey) = state[:] $= roundkey
 
-function encipher!(aes::AESBlock, plaintext::Array{UInt8,1})
+function encipher_block!(aes::AESBlock, plaintext::AbstractArray{UInt8,1})
     const debug = false
     length(plaintext) == blocklength_bytes(aes) || error("plaintext wrong length $(length(plaintext)), should be $(blocklength_bytes(aes)).")
     state = plaintext # FIXFIXFIX
@@ -499,10 +502,10 @@ function encipher!(aes::AESBlock, plaintext::Array{UInt8,1})
     state
 end
 
-encipher(aes::AESBlock, plaintext::Array{UInt8,1}) = encipher!(aes, copy(plaintext))
+encipher_block(aes, plaintext) = encipher_block!(aes, copy(plaintext))
 
 
-function decipher!(aes::AESBlock, plaintext::Array{UInt8,1})
+function decipher_block!(aes::AESBlock, plaintext::AbstractArray{UInt8,1})
    # const debug = false
     length(plaintext) == blocklength_bytes(aes) || error("plaintext wrong length $(length(plaintext)), should be $(blocklength_bytes(aes)).")
     state = plaintext # FIXFIXFIX
@@ -535,7 +538,7 @@ function decipher!(aes::AESBlock, plaintext::Array{UInt8,1})
     state
 end
 
-decipher(aes::AESBlock, ciphertext::Array{UInt8,1}) = decipher!(aes, copy(ciphertext))
+decipher_block(aes, ciphertext) = decipher_block!(aes, copy(ciphertext))
 
 #########################
 # Blockmodes
@@ -546,72 +549,93 @@ end
 
 type Blockmode_CBC <: Blockmode
     IV :: AbstractArray{UInt8,1}
-    ciphertext_prev :: AbstractArray{UInt8,1}
-
-    function Blockmode_CBC(IV::AbstractArray{UInt8,1})
-        return new(IV, UInt8[])
-    end
 end
 
 # ECB
 # C_i = E(K, P_i)
-function encipher_block(bm::Blockmode_ECB, bc::Blockcipher, plaintext)
-    encipher(bc, plaintext)
+function encipher_blocks!(blocks, bm::Blockmode_ECB, bc::Blockcipher)
+    for i = 1:size(blocks, 2)
+        encipher_block!(bc, sub(blocks, :, i ) )
+    end
+    blocks
 end
 
-function decipher_block(bm::Blockmode_ECB, bc::Blockcipher, ciphertext)
-    decipher(bc, ciphertext)
+# P_i = D(K, C_i)
+function decipher_blocks!(blocks, bm::Blockmode_ECB, bc::Blockcipher)
+    for i = 1:size(blocks, 2)
+        decipher_block!(bc, sub(blocks, :, i) )
+    end
+    blocks
 end
-
 
 # CBC
-# C_i = E(K, P_i + C_(i-1)), with C_0 := IV
-function encipher_block(bm::Blockmode_CBC, bc::Blockcipher, plaintext)
-    if length(ciphertext_prev) == 0
-        C_im1 = bm.IV
-    else
-        C_im1 = ciphertext_prev
+# C_i = E(K, P_i xor C_{i-1}), with C_0 := IV
+function encipher_blocks!(blocks, bm::Blockmode_CBC, bc::Blockcipher)
+    length(bm.IV) == size(blocks,1) || error("plaintext wrong length")
+
+    C_im1 = bm.IV
+    for i = 1:size(blocks, 2)
+        block = sub(blocks, :, i)
+#         println("initial p ", block)
+        block[:] $= C_im1
+#         println("after xor ", block)
+        encipher_block!(bc, block )
+#         println("after enc ", block)
+        C_im1 = block
     end
-    if length(C_im1) != length(plaintext)
-        error("plaintext wrong length")
-    end
-    modified_plaintext = plaintext $ C_im1
-    ciphertext = encipher(bc, plaintext)
-    bm.ciphertext_prev = copy(ciphertext)
-    ciphertext
+#     println("finally ", blocks)
+    blocks
 end
 
+# P_i = D(K, C_i) xor C_{i-1}, with C_0 := IV
+function decipher_blocks!(blocks, bm::Blockmode_CBC, bc::Blockcipher)
+    length(bm.IV) == size(blocks,1) || error("plaintext wrong length")
+
+    for i = size(blocks, 2):-1:1
+        block = sub(blocks, :, i)
+#         println("initial c ", block)
+        decipher_block!(bc, block )
+#         println("after dec ", block)
+        if i > 1
+            C_im1 = blocks[:, i-1]
+        else
+            C_im1 = bm.IV
+        end
+        block[:] $= C_im1
+#         println("after xor ", block)
+    end
+    blocks
+end
 
 # blocklength_bytes(aes::AESBlock) = 16
-
 
 function encipher(cipher::Cipher, plaintext)
     # pad
     plaintext_padded = Crypto101.pad(cipher.padder, plaintext)
 
-    # encrypt one block after the other
+    # check dimensions
     blocklength = blocklength_bytes(cipher.blockcipher)
     numblocks, extra = divrem(length(plaintext_padded), blocklength)
     extra == 0 || error("padded plaintext wrong length")
 
-    ct = zeros(plaintext_padded)
-    for i = 1:numblocks
-        ct[((i-1)*blocklength+1):(i*blocklength)] = encipher_block(cipher.blockmode, cipher.blockcipher, plaintext_padded[((i-1)*blocklength+1):(i*blocklength)])
-    end
-    ct
+    # reshape, encrypt blocks
+    blocks = reshape(plaintext_padded, (blocklength, numblocks)) # every column is a block
+    encipher_blocks!(blocks, cipher.blockmode, cipher.blockcipher)
+    return vec(blocks)
 end
 
 function decipher(cipher::Cipher, ciphertext)
+    # check dimensions
     blocklength = blocklength_bytes(cipher.blockcipher)
     numblocks, extra = divrem(length(ciphertext), blocklength)
     extra == 0 || error("ciphertext wrong length")
 
-    plaintext_padded = zeros(ciphertext)
-    for i = 1:numblocks
-        plaintext_padded[((i-1)*blocklength+1):(i*blocklength)] = decipher_block(cipher.blockmode, cipher.blockcipher, ciphertext[((i-1)*blocklength+1):(i*blocklength)])
-    end
+    # reshape, decrypt blocks
+    blocks = reshape(ciphertext, (blocklength, numblocks)) # every column is a block
+    decipher_blocks!(blocks, cipher.blockmode, cipher.blockcipher)
+
     # unpad
-    plaintext = Crypto101.unpad(cipher.padder, plaintext_padded)
+    plaintext = Crypto101.unpad(cipher.padder, vec(blocks))
 end
 
 end
