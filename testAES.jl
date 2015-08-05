@@ -53,9 +53,9 @@ println(0x57 ∙ 0x13 == 0x13 ∙ 0x57 == 0xfe)
 println(AES.word( ([0x00, 0x00, 0x00, 0x01] ⊗ a)...) == AES.rotword(AES.word(a...)))
 println(AES.keyexpansion(cipher128) == keyExpanded_appA_128_b)
 println(AES.Sbox(0x53) == 0xed)
-println(AES.encipher(AES.AESBlock(example_key_128), example_plaintext) == example_cipher_ref_128)
-println(AES.encipher(AES.AESBlock(example_key_192), example_plaintext) == example_cipher_ref_192)
-println(AES.encipher(AES.AESBlock(example_key_256), example_plaintext) == example_cipher_ref_256)
+println(AES.encipher_block(AES.AESBlock(example_key_128), example_plaintext) == example_cipher_ref_128)
+println(AES.encipher_block(AES.AESBlock(example_key_192), example_plaintext) == example_cipher_ref_192)
+println(AES.encipher_block(AES.AESBlock(example_key_256), example_plaintext) == example_cipher_ref_256)
 
 
 # complete encyption example
@@ -64,7 +64,18 @@ blockcipher = AES.AESBlock(key)
 blockmode = AES.Blockmode_ECB()
 padder = Crypto101.Padder1Bit( AES.blocklength_bytes(blockcipher) )
 c = AES.Cipher( blockcipher, blockmode, padder)
-plaintext = b"this is my first encryption test!"
+plaintext = b"this is my first encryption test! Note: ECB is not recommended."
 ciphertext = AES.encipher(c, plaintext)
 plaintext_roundtrip = AES.decipher(c, ciphertext)
-plaintext == plaintext_roundtrip
+println(plaintext == plaintext_roundtrip)
+ciphertext_ref = UInt8[0x74,0x68,0x69,0x73,0x20,0x69,0x73,0x20,0x6d,0x79,0x20,0x66,0x69,0x72,0x73,0x74,0x20,0x65,0x6e,0x63,0x72,0x79,0x70,0x74,0x69,0x6f,0x6e,0x20,0x74,0x65,0x73,0x74,0x21,0x20,0x4e,0x6f,0x74,0x65,0x3a,0x20,0x45,0x43,0x42,0x20,0x69,0x73,0x20,0x6e,0x6f,0x74,0x20,0x72,0x65,0x63,0x6f,0x6d,0x6d,0x65,0x6e,0x64,0x65,0x64,0x2e,0x80]
+println(ciphertext == ciphertext_ref)
+
+
+blockmode = AES.Blockmode_CBC(b"initvect12345678")
+padder = Crypto101.PadderPKCS7( AES.blocklength_bytes(blockcipher) )
+c = AES.Cipher( blockcipher, blockmode, padder)
+plaintext = b"this is my second, and a bit longer encryption test, this time using CBC instead of ECB!"
+ciphertext = AES.encipher(c, plaintext)
+plaintext_roundtrip = AES.decipher(c, ciphertext)
+println(plaintext == plaintext_roundtrip)
