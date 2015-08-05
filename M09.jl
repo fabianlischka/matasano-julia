@@ -1,4 +1,4 @@
-# Fabian R Lischka, 2015-05-10, TG 921 (Airbus A380) FRA-BKK, destination CGK (Jakarta)
+# Fabian R Lischka, 2015-05-10, TG 921 (Airbus A380) FRA-BKK -CGK (Jakarta)
 # http://cryptopals.com/sets/1/challenges/9/
 
 # Implement PKCS#7 padding

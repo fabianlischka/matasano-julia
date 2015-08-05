@@ -57,7 +57,7 @@ function guessslices{T<:Unsigned}(ct_b::Array{T,1}, keysize)
     b
 end
 
-ct_b = str2bytes(getciphertext("6.txt"))
+ct_b = getciphertext("6.txt")
 dist, keysize, z = guesskeysize(ct_b,20,40)[1]
 println("Trying keysize $keysize with average bit distance of $dist and z-score of $z...")
 # slice

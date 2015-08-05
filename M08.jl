@@ -8,14 +8,6 @@
 # the same 16 byte plaintext block will always produce the same 16 byte ciphertext.
 
 fn = "8.txt"
-for ln in open(readlines,fn)
-    ct_b = hex2bytes(chomp(ln))
-    c = countsameblocks(ct_b)
-    if c > 0
-        println(ln)
-        println(ct_b)
-    end
-end
 
 function countsameblocks(ct_b, block_size = 16) # n^2 algo
     c = 0
@@ -31,6 +23,15 @@ function countsameblocks(ct_b, block_size = 16) # n^2 algo
         r += 1
     end
     c
+end
+
+for ln in open(readlines,fn)
+    ct_b = hex2bytes(chomp(ln))
+    c = countsameblocks(ct_b)
+    if c > 0
+        println(ln)
+        println(ct_b)
+    end
 end
 
 
