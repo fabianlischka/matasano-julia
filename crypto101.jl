@@ -3,7 +3,27 @@ module Crypto101
 using Base.Collections, Base.Order
 
 export str2bytes, chi2score, collectNBestXor, encryptxor, pop, hammingdistance
-export pad, unpad, PadderPKCS7
+export pad, unpad, Padder1Bit, PadderPKCS7
+export heappeek, heappushpop!, heapreplace!
+
+heappeek(xs::AbstractArray) = xs[1]
+
+# Binary min-heap pushpop (faster than push followed by pop, as only one percolate).
+function heappushpop!(xs::AbstractArray, x, o::Ordering=Forward)
+    if !isempty(xs) && lt(o, xs[1], x)
+        xs[1], x = x, xs[1]
+        Base.Collections.percolate_down!(xs, 1, o)
+    end
+    x
+end
+
+# Binary min-heap replace (faster than pop followed by push, as only one percolate).
+function heapreplace!(xs::AbstractArray, x, o::Ordering=Forward)
+    xs[1] = x
+    Base.Collections.percolate_down!(xs, 1, x, o)
+    xs
+end
+
 
 str2bytes(s::String) = [UInt8(c) for c in s]
 
