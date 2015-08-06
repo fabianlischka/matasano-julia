@@ -2,7 +2,7 @@ module Crypto101
 
 using Base.Collections, Base.Order
 
-export str2bytes, chi2score, collectNBestXor, encryptxor, pop, hammingdistance
+export str2bytes, chi2score, collectNBestXor, encryptxor, populationcount, hammingdistance
 export pad, unpad, Padder1Bit, PadderPKCS7
 export heappeek, heappushpop!, heapreplace!
 
@@ -108,8 +108,8 @@ function encryptxor(pt_b, key_b)
 end
 
 
-# POP: given char or unsigned int, it returns the population count, ie number of bits that are set to one
-function pop(x::UInt32) # from "Hacker's Delight"
+# POPULATIONCOUNT: given char or unsigned int, it returns the population count, ie number of bits that are set to one
+function populationcount(x::UInt32) # from "Hacker's Delight"
   x::UInt32 = x - ((x >> 1) & 0x55555555)
   x = (x & 0x33333333) + ((x >> 2) & 0x33333333)
   x = (x + (x >> 4)) & 0x0F0F0F0F
@@ -118,7 +118,7 @@ function pop(x::UInt32) # from "Hacker's Delight"
   return Int64(x & 0x0000003F)
 end
 
-function pop{T<:Unsigned}(x::T)
+function populationcount{T<:Unsigned}(x::T)
   n = 0
   while x != zero(T)
     n += 1
@@ -127,8 +127,8 @@ function pop{T<:Unsigned}(x::T)
   n
 end
 
-pop(x::Char) = pop(UInt32(x))
-pop(x) = count( c->(c=='1'), bits(x))
+populationcount(x::Char) = populationcount(UInt32(x))
+populationcount(x) = count( c->(c=='1'), bits(x))
 
 # PAR computes the parity of x, that is 1 if the number of set bits in x is odd, and 0 if it's even
 function par(x::UInt8)
@@ -138,11 +138,11 @@ function par(x::UInt8)
     y & one(x)
 end
 
-par(x) = pop(x) & one(x)
+par(x) = populationcount(x) & one(x)
 
 # HAMMINGDISTANCE: number of bits that are different between x and y
-hammingdistance{T<:Unsigned}(x::T,y::T) = pop(x$y)
-hammingdistance{T<:Char}(x::T,y::T) = pop(x $ y)
+hammingdistance{T<:Unsigned}(x::T,y::T) = populationcount(x $ y)
+hammingdistance{T<:Char}(x::T,y::T) = populationcount(x $ y)
 
 function hammingdistance{T<:String}(xs::T,ys::T)
   length(xs) == length(ys) || error("strings must be equal length to compute hamming distance")
